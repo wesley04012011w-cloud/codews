@@ -1,17 +1,30 @@
 --[[
-    BITCODE FRAMEWORK V11.0 - SAILOR PIECE (GEOGRAPHIC INTELLIGENCE)
-    INTERFACE: WESLEY-CLOUD LIBRARY
-    SISTEMA: AUTO-ISLAND DETECTION + RENDER BUFFER
+    BITCODE FRAMEWORK V11.0 - SAILOR PIECE (HOTFIX V2)
+    STATUS: CORREÇÃO DE RENDERIZAÇÃO DE UI
+    AJUSTE: DELAY DE SINCRONIZAÇÃO ADICIONADO
 ]]
 
+-- 1. Inicialização de Dados de Segurança
+_G.AutoFarm = false
+_G.AutoAbility = false
+_G.SelectedNPC = "CoinFruitDealer"
+_G.SelectedTarget = "Thiefs"
+_G.IsTweening = false
+_G.SelectedShopItem = "Trait Reroll"
+_G.PurchaseAmount = 1
+local FarmDistance = 10
+
+-- 2. Carregamento da Library
 local Bitcode = loadstring(game:HttpGet("https://raw.githubusercontent.com/wesley04012011w-cloud/Library/refs/heads/main/library.lua"))()
 local Window = Bitcode:Init()
+
+-- Pequena pausa para a library carregar o frame no PlayerGui
+task.wait(0.5)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-
 local LocalPlayer = Players.LocalPlayer
 
 -- Remotes
@@ -19,15 +32,6 @@ local CombatRemote = ReplicatedStorage:WaitForChild("CombatSystem"):WaitForChild
 local AbilityRemote = ReplicatedStorage:WaitForChild("AbilitySystem"):WaitForChild("Remotes"):WaitForChild("RequestAbility")
 local TeleportRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal")
 local PurchaseRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("MerchantRemotes"):WaitForChild("PurchaseMerchantItem")
-
--- Configurações Globais
-_G.AutoFarm = false
-_G.SelectedNPC = "CoinFruitDealer"
-_G.SelectedTarget = "Thiefs"
-_G.IsTweening = false
-_G.SelectedShopItem = "Trait Reroll"
-_G.PurchaseAmount = 1
-local FarmDistance = 10
 
 -- [ BANCO DE DADOS GEOGRÁFICO ]
 local NPC_Locations = {
@@ -45,7 +49,7 @@ local NPC_Locations = {
     ["SkillTreeNPC"] = "Slime"
 }
 
--- [ SISTEMA DE MOVIMENTAÇÃO TWEEN ]
+-- [ SISTEMA DE TWEEN ]
 local function SmoothTween(targetCFrame)
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
@@ -74,7 +78,7 @@ local NPCTab = Window:CreateTab("NPCs")
 local ShopTab = Window:CreateTab("Shop")
 local TeleportTab = Window:CreateTab("Teleportes")
 
--- [ ABA NPCs - INTELIGÊNCIA GEOGRÁFICA ]
+-- [ ABA NPCs ]
 NPCTab:CreateDropdown("Selecionar NPC", {
     "CoinFruitDealer", "GemFruitDealer", "ObservationBuyer", "DarkBladeNPC", 
     "HakiQuestNPC", "GryphonBuyerNPC", "SummonBossNPC", "DungeonMerchantNPC", 
@@ -86,56 +90,41 @@ end)
 NPCTab:CreateButton("Teleport to NPC", function()
     local targetIsland = NPC_Locations[_G.SelectedNPC]
     if targetIsland then
-        print("bitcode: Alvo em " .. targetIsland .. ". Iniciando sequência...")
         _G.AutoFarm = false
-        
-        -- 1. Teleporte de Instância para carregar a ilha correta
         TeleportRemote:FireServer(targetIsland)
-        
-        -- 2. Buffer para carregar o mapa (Streaming)
         task.wait(2.5) 
-        
-        -- 3. Tween até o NPC na ilha renderizada
         local folder = workspace:FindFirstChild("ServiceNPCs")
         if folder then
             local target = folder:FindFirstChild(_G.SelectedNPC)
             if target and target:FindFirstChild("HumanoidRootPart") then
                 SmoothTween(target.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4))
-            else
-                print("bitcode: Falha na renderização do NPC. Tente novamente.")
             end
         end
     end
 end)
 
 -- [ ABA SHOP ]
-ShopTab:CreateDropdown("Selecionar Item", {"Trait Reroll", "Boss Key", "Haki Color Reroll", "Race Reroll", "Rush Key", "Passive Shard", "Dungeon Key", "Clan Reroll"}, function(s) _G.SelectedShopItem = s end)
+ShopTab:CreateDropdown("Item", {"Trait Reroll", "Boss Key", "Haki Color Reroll", "Race Reroll", "Rush Key", "Passive Shard", "Dungeon Key", "Clan Reroll"}, function(s) _G.SelectedShopItem = s end)
 ShopTab:CreateSlider("Quantidade", 1, 100, 1, function(v) _G.PurchaseAmount = v end)
-ShopTab:CreateButton("Confirmar Compra", function() PurchaseRemote:InvokeServer(_G.SelectedShopItem, _G.PurchaseAmount) end)
+ShopTab:CreateButton("Comprar Selecionado", function() 
+    PurchaseRemote:InvokeServer(_G.SelectedShopItem, _G.PurchaseAmount) 
+end)
 
 -- [ ABA AUTO FARM ]
-FarmTab:CreateDropdown("Selecionar Grupo", {"Thiefs", "ThiefBoss", "Monkeys", "MonkeyBoss", "Desert Bandits", "Desert Boss", "Frost Rogues", "SnowBoss", "Sorcerer", "PandaMiniBoss", "Hollow", "StrongSorcerer", "Curse", "Slime", "AcademyTeacher", "Swordsman", "ArenaFighter"}, function(s) _G.SelectedTarget = s end)
-FarmTab:CreateToggle("Ativar Farm Aggro (1-5)", function(state) _G.AutoFarm = state end)
-FarmTab:CreateToggle("Usar Habilidades", function(state) _G.AutoAbility = state end)
+FarmTab:CreateDropdown("Grupo de NPCs", {"Thiefs", "ThiefBoss", "Monkeys", "MonkeyBoss", "Desert Bandits", "Desert Boss", "Frost Rogues", "SnowBoss", "Sorcerer", "PandaMiniBoss", "Hollow", "StrongSorcerer", "Curse", "Slime", "AcademyTeacher", "Swordsman", "ArenaFighter"}, function(s) _G.SelectedTarget = s end)
+FarmTab:CreateToggle("Auto Farm Aggro", function(state) _G.AutoFarm = state end)
+FarmTab:CreateToggle("Auto Habilidades", function(state) _G.AutoAbility = state end)
 
--- [ ABA TELEPORTES - ATUALIZADA ]
-local Locations = {
-    ["Início (Starter)"] = "Starter", ["Selva (Jungle)"] = "Jungle", ["Deserto (Desert)"] = "Desert",
-    ["Neve (Snow)"] = "Snow", ["Marinheiro (Sailor)"] = "Sailor", ["Shibuya"] = "Shibuya",
-    ["Ilha Hollow"] = "HollowIsland", ["Chefão (Boss)"] = "Boss", ["Dungeon"] = "Dungeon",
-    ["Shinjuku"] = "Shinjuku", ["Academia (Academy)"] = "Academy", ["Julgamento (Judgement)"] = "Judgement",
-    ["Ninja"] = "Ninja", ["Sem Lei (Lawless)"] = "Lawless", ["Torre (Tower)"] = "Tower",
-    ["Slime (New)"] = "Slime" -- Novo Teleporte Adicionado
+-- [ ABA TELEPORTES ]
+local Islands = {
+    ["Starter"] = "Starter", ["Jungle"] = "Jungle", ["Desert"] = "Desert", ["Snow"] = "Snow", 
+    ["Sailor"] = "Sailor", ["Shibuya"] = "Shibuya", ["Hollow"] = "HollowIsland", ["Boss"] = "Boss", 
+    ["Dungeon"] = "Dungeon", ["Shinjuku"] = "Shinjuku", ["Academy"] = "Academy", ["Judgement"] = "Judgement",
+    ["Ninja"] = "Ninja", ["Lawless"] = "Lawless", ["Tower"] = "Tower", ["Slime"] = "Slime"
 }
-
-TeleportTab:CreateDropdown("Selecionar Destino", {
-    "Início (Starter)", "Selva (Jungle)", "Deserto (Desert)", "Neve (Snow)", 
-    "Marinheiro (Sailor)", "Shibuya", "Ilha Hollow", "Chefão (Boss)", 
-    "Dungeon", "Shinjuku", "Academia (Academy)", "Julgamento (Judgement)", 
-    "Ninja", "Sem Lei (Lawless)", "Torre (Tower)", "Slime (New)"
-}, function(s) 
+TeleportTab:CreateDropdown("Ir para Ilha", {"Starter", "Jungle", "Desert", "Snow", "Sailor", "Shibuya", "Hollow", "Boss", "Dungeon", "Shinjuku", "Academy", "Judgement", "Ninja", "Lawless", "Tower", "Slime"}, function(s) 
     _G.AutoFarm = false 
-    TeleportRemote:FireServer(Locations[s]) 
+    TeleportRemote:FireServer(Islands[s]) 
 end)
 
 -- [ LÓGICA DE BACKEND ]
@@ -150,7 +139,7 @@ task.spawn(function()
                 for i = 1, #currentList do
                     if not _G.AutoFarm or _G.IsTweening then break end
                     local target = folder:FindFirstChild(currentList[i])
-                    if target and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 and target:FindFirstChild("HumanoidRootPart") then
+                    if target and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 then
                         char.Humanoid.PlatformStand = true
                         char.HumanoidRootPart.CFrame = CFrame.new(target.HumanoidRootPart.Position + Vector3.new(0, FarmDistance, 0)) * CFrame.Angles(math.rad(-90), 0, 0)
                         CombatRemote:FireServer()
@@ -171,4 +160,4 @@ RunService.Stepped:Connect(function()
     end
 end)
 
-print("bitcode: Sailor Piece V11.0 Finalizado e Otimizado.")
+print("bitcode: Hotfix V2 aplicado. UI deve carregar em 0.5s.")
