@@ -232,7 +232,7 @@ function Library:Init(config)
     local topIcon = Instance.new("TextLabel", topBar)
     topIcon.Name = "Icon"
     topIcon.Size = UDim2.new(0, 60, 0, 60)
-    topIcon.Text = "⌬" 
+    topIcon.Text = "</>" 
     topIcon.TextColor3 = self.Colors.PRIMARY_ACCENT
     topIcon.TextSize = 26
     topIcon.BackgroundTransparency = 1
