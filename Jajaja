@@ -1,0 +1,416 @@
+--[[
+    BITCODE FRAMEWORK - VERSÃO COMPLETA INTEGRADA
+    STATUS: OTIMIZADO & COMPLETO
+]]
+
+local Library = {
+    Colors = {
+        PRIMARY_ACCENT = Color3.fromRGB(0, 170, 255), 
+        BACKGROUND_BLACK = Color3.fromRGB(12, 12, 12),
+        ACCENT_WHITE = Color3.fromRGB(255, 255, 255),
+        DARK_GREY = Color3.fromRGB(25, 25, 25),
+        HIGHLIGHT = Color3.fromRGB(40, 40, 40),
+        TOPBAR = Color3.fromRGB(18, 18, 18),
+        Palette = {
+            RED = Color3.fromRGB(255, 75, 75),
+            GREEN = Color3.fromRGB(75, 255, 120),
+            BLUE = Color3.fromRGB(75, 150, 255),
+            PURPLE = Color3.fromRGB(170, 85, 255),
+            PINK = Color3.fromRGB(255, 105, 180),
+            YELLOW = Color3.fromRGB(255, 215, 0),
+            ORANGE = Color3.fromRGB(255, 120, 0),
+            CYAN = Color3.fromRGB(0, 255, 255),
+            LIME = Color3.fromRGB(180, 255, 50),
+            CRIMSON = Color3.fromRGB(220, 20, 60),
+            WHITE = Color3.fromRGB(255, 255, 255),
+            -- Novas Cores Adicionadas
+            GOLD = Color3.fromRGB(212, 175, 55),
+            ICE = Color3.fromRGB(165, 242, 243),
+            MINT = Color3.fromRGB(152, 255, 152),
+            VIOLET = Color3.fromRGB(138, 43, 226),
+            DEEP_BLUE = Color3.fromRGB(0, 38, 77)
+        }
+    },
+    ThemedElements = {},
+    Container = nil,
+    TabList = nil,
+    _firstTab = false,
+    RGBConnection = nil,
+    TweenInfoFast = TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+    TweenInfoSlow = TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+}
+Library.__index = Library
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+
+-- [ FUNÇÕES AUXILIARES ] --
+local function createCorner(obj, r)
+    local c = Instance.new("UICorner", obj)
+    c.CornerRadius = UDim.new(0, r or 10)
+    return c
+end
+
+local function createStroke(obj, color, thickness)
+    local s = Instance.new("UIStroke", obj)
+    s.Color = color
+    s.Thickness = thickness or 1.2
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    table.insert(Library.ThemedElements, s)
+    return s
+end
+
+local function makeDraggable(frame, handle)
+    local dragging, dragInput, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    handle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+local function rotateIcon(label)
+    task.spawn(function()
+        while label and label.Parent do
+            label.Rotation = label.Rotation + 1
+            task.wait()
+        end
+    end)
+end
+
+-- [ SISTEMA DE TEMA ] --
+function Library:SetTheme(color)
+    self.Colors.PRIMARY_ACCENT = color
+    for _, obj in pairs(self.ThemedElements) do
+        pcall(function()
+            if obj:IsA("UIStroke") then
+                obj.Color = color
+            elseif obj:IsA("Frame") and obj.Name == "Fill" then
+                obj.BackgroundColor3 = color
+            elseif obj:IsA("TextLabel") and obj.Name == "Icon" then
+                obj.TextColor3 = color
+            elseif obj:IsA("ScrollingFrame") then
+                obj.ScrollBarImageColor3 = color
+            elseif obj:IsA("TextLabel") and (obj.Name == "TitleNotify" or obj.Name == "Arrow") then
+                obj.TextColor3 = color
+            end
+        end)
+    end
+end
+
+function Library:ToggleRGB(state)
+    if state then
+        if self.RGBConnection then self.RGBConnection:Disconnect() end
+        self.RGBConnection = RunService.RenderStepped:Connect(function()
+            local hue = tick() % 5 / 5
+            self:SetTheme(Color3.fromHSV(hue, 0.8, 1))
+        end)
+    else
+        if self.RGBConnection then self.RGBConnection:Disconnect(); self.RGBConnection = nil end
+    end
+end
+
+-- [ NOTIFICAÇÃO ] --
+function Library:Notify(title, text, duration)
+    local parent = CoreGui:FindFirstChild("BitcodeLibrary")
+    if not parent then return end
+    local container = parent:FindFirstChild("NotifyContainer")
+    if not container then
+        container = Instance.new("Frame", parent)
+        container.Name = "NotifyContainer"
+        container.Size = UDim2.new(0, 260, 1, -20)
+        container.Position = UDim2.new(1, -270, 0, 10)
+        container.BackgroundTransparency = 1
+        local l = Instance.new("UIListLayout", container)
+        l.VerticalAlignment = Enum.VerticalAlignment.Bottom
+        l.Padding = UDim.new(0, 8)
+    end
+
+    local frame = Instance.new("Frame", container)
+    frame.Size = UDim2.new(1, 0, 0, 0)
+    frame.BackgroundColor3 = self.Colors.BACKGROUND_BLACK
+    frame.ClipsDescendants = true
+    createCorner(frame, 8)
+    createStroke(frame, self.Colors.PRIMARY_ACCENT, 1.2)
+
+    local tl = Instance.new("TextLabel", frame)
+    tl.Name = "TitleNotify"
+    tl.Size = UDim2.new(1, -10, 0, 18)
+    tl.Position = UDim2.new(0, 8, 0, 4)
+    tl.Text = title
+    tl.TextColor3 = self.Colors.PRIMARY_ACCENT
+    tl.Font = Enum.Font.GothamBold
+    tl.TextSize = 12
+    tl.BackgroundTransparency = 1
+    tl.TextXAlignment = Enum.TextXAlignment.Left
+    table.insert(self.ThemedElements, tl)
+
+    local desc = Instance.new("TextLabel", frame)
+    desc.Size = UDim2.new(1, -10, 0, 30)
+    desc.Position = UDim2.new(0, 8, 0, 20)
+    desc.Text = text
+    desc.TextColor3 = self.Colors.ACCENT_WHITE
+    desc.Font = Enum.Font.Gotham
+    desc.TextSize = 11
+    desc.BackgroundTransparency = 1
+    desc.TextWrapped = true
+    desc.TextXAlignment = Enum.TextXAlignment.Left
+
+    TweenService:Create(frame, self.TweenInfoFast, {Size = UDim2.new(1, 0, 0, 55)}):Play()
+    task.delay(duration or 3, function()
+        local t = TweenService:Create(frame, self.TweenInfoFast, {Size = UDim2.new(1, 0, 0, 0)})
+        t:Play()
+        t.Completed:Connect(function() frame:Destroy() end)
+    end)
+end
+
+-- [ INIT ] --
+function Library:Init(config)
+    local cfg = config or {}
+    local uiName = cfg.Name or "BITCODE"
+    local uiVersion = cfg.Version or "1.0.0"
+
+    if CoreGui:FindFirstChild("BitcodeLibrary") then CoreGui.BitcodeLibrary:Destroy() end
+
+    local screen = Instance.new("ScreenGui", CoreGui)
+    screen.Name = "BitcodeLibrary"
+    screen.ResetOnSpawn = false
+
+    local main = Instance.new("CanvasGroup", screen)
+    main.Name = "Main"
+    main.Size = UDim2.new(0, 450, 0, 320)
+    main.Position = UDim2.new(0.5, -225, 0.5, -160)
+    main.BackgroundColor3 = self.Colors.BACKGROUND_BLACK
+    createCorner(main, 12)
+    createStroke(main, self.Colors.PRIMARY_ACCENT, 1.8)
+
+    local topBar = Instance.new("Frame", main)
+    topBar.Size = UDim2.new(1, 0, 0, 60)
+    topBar.BackgroundColor3 = self.Colors.TOPBAR
+    createCorner(topBar, 12)
+    makeDraggable(main, topBar)
+
+    local topIcon = Instance.new("TextLabel", topBar)
+    topIcon.Name = "Icon"
+    topIcon.Size = UDim2.new(0, 60, 0, 60)
+    topIcon.Text = "⌬" -- Ícone tecnológico compatível
+    topIcon.TextColor3 = self.Colors.PRIMARY_ACCENT
+    topIcon.TextSize = 26
+    topIcon.BackgroundTransparency = 1
+    rotateIcon(topIcon)
+    table.insert(self.ThemedElements, topIcon)
+
+    -- Nome e Versão (Um embaixo do outro)
+    local titleFrame = Instance.new("Frame", topBar)
+    titleFrame.Size = UDim2.new(1, -150, 1, 0)
+    titleFrame.Position = UDim2.new(0, 60, 0, 0)
+    titleFrame.BackgroundTransparency = 1
+
+    local n = Instance.new("TextLabel", titleFrame)
+    n.Size = UDim2.new(1, 0, 0.5, 0)
+    n.Position = UDim2.new(0, 0, 0.15, 0)
+    n.Text = uiName:upper()
+    n.TextColor3 = self.Colors.ACCENT_WHITE
+    n.Font = Enum.Font.GothamBold
+    n.TextSize = 16
+    n.BackgroundTransparency = 1
+    n.TextXAlignment = Enum.TextXAlignment.Left
+
+    local v = Instance.new("TextLabel", titleFrame)
+    v.Size = UDim2.new(1, 0, 0.5, 0)
+    v.Position = UDim2.new(0, 0, 0.45, 0)
+    v.Text = "version " .. uiVersion
+    v.TextColor3 = Color3.fromRGB(120, 120, 120)
+    v.Font = Enum.Font.GothamMedium
+    v.TextSize = 10
+    v.BackgroundTransparency = 1
+    v.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Botão Minimizar
+    local isMinimized = false
+    local minBtn = Instance.new("TextButton", topBar)
+    minBtn.Size = UDim2.new(0, 30, 0, 30)
+    minBtn.Position = UDim2.new(1, -40, 0.5, -15)
+    minBtn.BackgroundColor3 = self.Colors.DARK_GREY
+    minBtn.Text = "−"
+    minBtn.TextColor3 = Color3.new(1,1,1)
+    createCorner(minBtn, 8)
+    
+    minBtn.MouseButton1Click:Connect(function()
+        isMinimized = not isMinimized
+        local targetH = isMinimized and 60 or 320
+        TweenService:Create(main, self.TweenInfoSlow, {Size = UDim2.new(0, 450, 0, targetH)}):Play()
+        minBtn.Text = isMinimized and "+" or "−"
+    end)
+
+    local sidebar = Instance.new("Frame", main)
+    sidebar.Size = UDim2.new(0, 120, 1, -60)
+    sidebar.Position = UDim2.new(0, 0, 0, 60)
+    sidebar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    createCorner(sidebar, 10)
+
+    self.Container = Instance.new("Frame", main)
+    self.Container.Size = UDim2.new(1, -135, 1, -75)
+    self.Container.Position = UDim2.new(0, 130, 0, 70)
+    self.Container.BackgroundTransparency = 1
+
+    self.TabList = Instance.new("ScrollingFrame", sidebar)
+    self.TabList.Size = UDim2.new(1, 0, 1, -10)
+    self.TabList.BackgroundTransparency = 1
+    self.TabList.ScrollBarThickness = 0
+    Instance.new("UIListLayout", self.TabList).Padding = UDim.new(0, 5)
+
+    return self
+end
+
+function Library:CreateTab(name)
+    local btn = Instance.new("TextButton", self.TabList)
+    btn.Size = UDim2.new(0.9, 0, 0, 32)
+    btn.BackgroundColor3 = self.Colors.DARK_GREY
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(180, 180, 180)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 11
+    createCorner(btn, 6)
+
+    local content = Instance.new("ScrollingFrame", self.Container)
+    content.Size = UDim2.new(1, 0, 1, 0)
+    content.BackgroundTransparency = 1
+    content.Visible = false
+    content.ScrollBarThickness = 2
+    content.ScrollBarImageColor3 = self.Colors.PRIMARY_ACCENT
+    local l = Instance.new("UIListLayout", content)
+    l.Padding = UDim.new(0, 8)
+    l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    table.insert(self.ThemedElements, content)
+
+    btn.MouseButton1Click:Connect(function()
+        for _, v in pairs(self.Container:GetChildren()) do
+            if v:IsA("ScrollingFrame") then v.Visible = false end
+        end
+        content.Visible = true
+        content.Position = UDim2.new(0, 0, 0, 15)
+        TweenService:Create(content, self.TweenInfoFast, {Position = UDim2.new(0, 0, 0, 0)}):Play()
+    end)
+
+    if not self._firstTab then self._firstTab = true content.Visible = true end
+
+    local tab = {}
+    
+    function tab:CreateButton(text, cb)
+        local b = Instance.new("TextButton", content)
+        b.Size = UDim2.new(0.95, 0, 0, 38)
+        b.BackgroundColor3 = Library.Colors.DARK_GREY
+        b.Text = text
+        b.TextColor3 = Color3.new(1,1,1)
+        b.Font = Enum.Font.GothamSemibold
+        createCorner(b, 6)
+        
+        b.MouseButton1Click:Connect(function()
+            TweenService:Create(b, TweenInfo.new(0.1), {Size = UDim2.new(0.92, 0, 0, 35)}):Play()
+            task.delay(0.1, function() TweenService:Create(b, TweenInfo.new(0.1), {Size = UDim2.new(0.95, 0, 0, 38)}):Play() end)
+            cb()
+        end)
+    end
+    
+    function tab:CreateToggle(text, cb)
+        local s = false
+        local tBtn = Instance.new("TextButton", content)
+        tBtn.Size = UDim2.new(0.95, 0, 0, 38)
+        tBtn.BackgroundColor3 = Library.Colors.DARK_GREY
+        tBtn.Text = "  " .. text
+        tBtn.TextXAlignment = Enum.TextXAlignment.Left
+        tBtn.TextColor3 = Color3.new(1,1,1)
+        createCorner(tBtn, 6)
+
+        local box = Instance.new("Frame", tBtn)
+        box.Size = UDim2.new(0, 36, 0, 18)
+        box.Position = UDim2.new(1, -45, 0.5, -9)
+        box.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        createCorner(box, 10)
+
+        local dot = Instance.new("Frame", box)
+        dot.Name = "Fill"
+        dot.Size = UDim2.new(0, 14, 0, 14)
+        dot.Position = UDim2.new(0, 2, 0.5, -7)
+        dot.BackgroundColor3 = Library.Colors.PRIMARY_ACCENT
+        createCorner(dot, 10)
+        table.insert(Library.ThemedElements, dot)
+
+        tBtn.MouseButton1Click:Connect(function()
+            s = not s
+            TweenService:Create(dot, Library.TweenInfoFast, {Position = s and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}):Play()
+            cb(s)
+        end)
+    end
+
+    function tab:CreateDropdown(text, list, cb)
+        local open = false
+        local dFrame = Instance.new("Frame", content)
+        dFrame.Size = UDim2.new(0.95, 0, 0, 38)
+        dFrame.BackgroundColor3 = Library.Colors.DARK_GREY
+        dFrame.ClipsDescendants = true
+        createCorner(dFrame, 6)
+
+        local dBtn = Instance.new("TextButton", dFrame)
+        dBtn.Size = UDim2.new(1, 0, 0, 38)
+        dBtn.Text = "  " .. text
+        dBtn.TextXAlignment = Enum.TextXAlignment.Left
+        dBtn.TextColor3 = Color3.new(1,1,1)
+        dBtn.BackgroundTransparency = 1
+
+        local arrow = Instance.new("TextLabel", dBtn)
+        arrow.Name = "Arrow"
+        arrow.Size = UDim2.new(0, 30, 1, 0)
+        arrow.Position = UDim2.new(1, -35, 0, 0)
+        arrow.BackgroundTransparency = 1
+        arrow.Text = "▼"
+        arrow.TextColor3 = Library.Colors.PRIMARY_ACCENT
+        arrow.TextSize = 12
+        table.insert(Library.ThemedElements, arrow)
+
+        dBtn.MouseButton1Click:Connect(function()
+            open = not open
+            TweenService:Create(arrow, Library.TweenInfoFast, {Rotation = open and 180 or 0}):Play()
+            TweenService:Create(dFrame, Library.TweenInfoFast, {Size = open and UDim2.new(0.95, 0, 0, 38 + (#list * 30)) or UDim2.new(0.95, 0, 0, 38)}):Play()
+        end)
+
+        for i, item in pairs(list) do
+            local it = Instance.new("TextButton", dFrame)
+            it.Size = UDim2.new(0.95, 0, 0, 25)
+            it.Position = UDim2.new(0.025, 0, 0, 40 + ((i-1)*28))
+            it.Text = item
+            it.BackgroundColor3 = Color3.fromRGB(35,35,35)
+            it.TextColor3 = Color3.fromRGB(200,200,200)
+            createCorner(it, 4)
+            it.MouseButton1Click:Connect(function()
+                cb(item); dBtn.Text = "  " .. text .. ": " .. item
+                open = false
+                TweenService:Create(arrow, Library.TweenInfoFast, {Rotation = 0}):Play()
+                TweenService:Create(dFrame, Library.TweenInfoFast, {Size = UDim2.new(0.95, 0, 0, 38)}):Play()
+            end)
+        end
+    end
+
+    return tab
+end
+
+return Library
